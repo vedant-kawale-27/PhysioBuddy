@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom'; // 1. Added Link import
 import Navbar from '../components/Navbar'; 
 import pb from "../assets/pb.png";
-
-const API_BASE = 'http://127.0.0.1:8000';
+import { API_BASE } from '../config';
 
 function HomeContent({ stats, doctorName }) {
   const features = [

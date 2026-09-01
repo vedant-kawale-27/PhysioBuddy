@@ -270,6 +270,7 @@
 
 
 import React, { useEffect, useRef, useState } from "react";
+import { API_BASE, WS_BASE } from "../config";
 
 // Helper function to get CSRF token for Django
 function getCookie(name) {
@@ -381,7 +382,7 @@ export default function WebcamStream() {
   }, [exercise_id, target_reps]);
 
   function startWebSocket() {
-    const ws = new WebSocket("ws://localhost:8000/ws/exercise/");
+    const ws = new WebSocket(`${WS_BASE}/ws/exercise/`);
     wsRef.current = ws;
 
     ws.onopen = () => {
@@ -428,7 +429,7 @@ export default function WebcamStream() {
   // --- API Submission & Redirection ---
   const handleDone = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/api/update-completion/", {
+      const response = await fetch(`${API_BASE}/api/update-completion/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -442,7 +443,7 @@ export default function WebcamStream() {
       });
 
       if (response.ok) {
-        window.location.href = "http://127.0.0.1:5173/exercise-list";
+        window.location.href = "/exercise-list";
       } else {
         console.error("Failed to update status on the server.");
         alert("Something went wrong saving your progress. Please try again.");

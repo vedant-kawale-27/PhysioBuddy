@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../components/Navbar'; 
+import { API_BASE } from '../config'; 
 
 // ─── Skeleton Loader (Responsive) ─────────────────────────────────
 const SkeletonCard = () => (
@@ -115,7 +116,7 @@ export default function ExerciseList() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/get-exercise-list/', {
+      const res = await fetch(`${API_BASE}/api/get-exercise-list/`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include', 

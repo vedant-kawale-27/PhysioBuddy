@@ -1,19 +1,33 @@
 from pathlib import Path
 import os
+from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Load environment variables from .env file if available
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / '.env')
+except ImportError:
+    pass
+
+# Set DEBUG from environment variable (defaults to False unless explicitly set to 'True')
+DEBUG = os.environ.get("DEBUG", "False") == "True"
+
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-5cy+wr0egssd(7g7t35a_$-l&6p!$=6ztwnvysa-#43mhmn_(7'
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    if not DEBUG and os.environ.get("DEBUG") == "False":
+        raise ImproperlyConfigured("SECRET_KEY environment variable is required in production (when DEBUG=False).")
+    SECRET_KEY = 'django-insecure-5cy+wr0egssd(7g7t35a_$-l&6p!$=6ztwnvysa-#43mhmn_(7'
 
-# Set DEBUG to False by default.
-# It will only be True if you explicitly set the environment variable DEBUG to 'True'
-DEBUG = True
-
-# This tells Django to use the Render variable if it exists, 
-# otherwise default to your local development list
-ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+# ALLOWED_HOSTS configuration
+allowed_hosts_env = os.environ.get("ALLOWED_HOSTS")
+if allowed_hosts_env:
+    ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(",") if host.strip()]
+else:
+    ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
 
 
 # Application definition
@@ -46,16 +60,24 @@ MIDDLEWARE = [
 
 # CORS_ALLOW_ALL_ORIGINS = True
 
-CORS_ALLOWED_ORIGINS = [
-    "http://127.0.0.1:5173",
-    "http://localhost:5173",
-    "http://127.0.0.1:8000",
-]
+cors_allowed_env = os.environ.get("CORS_ALLOWED_ORIGINS")
+if cors_allowed_env:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in cors_allowed_env.split(",") if origin.strip()]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:8000",
+    ]
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-]
+csrf_trusted_env = os.environ.get("CSRF_TRUSTED_ORIGINS")
+if csrf_trusted_env:
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in csrf_trusted_env.split(",") if origin.strip()]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
 
 # Allow credentials for CORS
 CORS_ALLOW_CREDENTIALS = True
