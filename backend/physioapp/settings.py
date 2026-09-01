@@ -18,7 +18,7 @@ DEBUG = os.environ.get("DEBUG", "False") == "True"
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
-    if not DEBUG and os.environ.get("DEBUG") == "False":
+    if not DEBUG:
         raise ImproperlyConfigured("SECRET_KEY environment variable is required in production (when DEBUG=False).")
     SECRET_KEY = 'django-insecure-5cy+wr0egssd(7g7t35a_$-l&6p!$=6ztwnvysa-#43mhmn_(7'
 

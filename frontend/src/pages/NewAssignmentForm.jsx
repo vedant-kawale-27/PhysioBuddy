@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Navbar from '../components/Navbar'; // 1. Import shared Navbar
+import Navbar from '../Components/Navbar'; // 1. Import shared Navbar
 import { API_BASE } from '../config';
 
 function getCookie(name) {

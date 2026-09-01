@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Navbar from '../components/Navbar'; 
+import Navbar from '../Components/Navbar'; 
 import { API_BASE } from '../config';
 
 export default function P_PatientProfile() {

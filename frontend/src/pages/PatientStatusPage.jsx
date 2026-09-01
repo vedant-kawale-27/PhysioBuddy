@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import Navbar from '../components/Navbar'; // Import shared component
+import Navbar from '../Components/Navbar'; // Import shared component
 import pb from "../assets/pb.png";
 import { API_BASE } from '../config';
 

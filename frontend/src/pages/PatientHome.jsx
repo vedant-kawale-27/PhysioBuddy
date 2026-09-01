@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import Navbar from '../components/Navbar'; 
+import Navbar from '../Components/Navbar'; 
 import { API_BASE } from '../config';
 
 export default function PatientHome() {

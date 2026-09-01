@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom'; // 1. Added Link import
-import Navbar from '../components/Navbar'; 
+import Navbar from '../Components/Navbar'; 
 import pb from "../assets/pb.png";
 import { API_BASE } from '../config';
 
