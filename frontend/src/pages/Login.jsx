@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { API_BASE } from "../config";
 // Removed: import { Loader2 } from 'lucide-react'; 
 
 // Utility function to get CSRF token from cookies
@@ -43,7 +44,7 @@ const handleSubmit = async (e) => {
   setError(null);
 
     const { email, password } = form;
-  const loginUrl = "http://127.0.0.1:8000/api/login/";
+  const loginUrl = `${API_BASE}/api/login/`;
 
   try {
     // Ensure we have a CSRF token by making a GET request first

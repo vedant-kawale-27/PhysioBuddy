@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, Link, useNavigate } from 'react-router-dom';
 import pb from "../assets/pb.png";
-
-const API_BASE = 'http://127.0.0.1:8000';
+import { API_BASE } from '../config';
 
 // Helper function to get CSRF token for Django
 function getCookie(name) {
