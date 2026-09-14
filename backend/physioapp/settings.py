@@ -172,6 +172,8 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+AUTH_USER_MODEL = 'physioapp.User'
+
 LOGIN_URL = '/api/login/'
 
 # The URL that handles the media served from MEDIA_ROOT, used for managing uploaded files.
