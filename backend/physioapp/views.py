@@ -550,6 +550,7 @@ def superadmin_system_status_api(request):
     }, status=200)
 
 
+@csrf_exempt
 def superadmin_run_diagnostics_api(request):
     """
     Executes live non-destructive diagnostic benchmarks:
