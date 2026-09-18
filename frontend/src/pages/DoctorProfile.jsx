@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Navbar from '../Components/Navbar'; 
 import { API_BASE } from '../config';
+import { ensureCsrfToken } from '../csrf';
 
 export default function P_DoctorProfile() {
   const [doctor, setDoctor] = useState(null);
@@ -53,10 +54,14 @@ export default function P_DoctorProfile() {
   const uploadImage = async (base64String) => {
     setIsUploading(true);
     try {
+      const csrfToken = await ensureCsrfToken();
       const response = await fetch(`${API_BASE}/api/doctor/update-image/`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken,
+        },
         body: JSON.stringify({ doctor_image: base64String }),
       });
       if (!response.ok) throw new Error('Failed to save image');
@@ -82,6 +87,10 @@ export default function P_DoctorProfile() {
         {loading ? (
           <div className="h-full w-full flex items-center justify-center">
             <div className="animate-spin h-10 w-10 border-4 border-cyan-600 border-t-transparent rounded-full"></div>
+          </div>
+        ) : error ? (
+          <div className="max-w-xl mx-auto p-6 bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400 rounded-2xl text-center">
+            <p className="font-semibold">{error}</p>
           </div>
         ) : (
           <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">

@@ -12,6 +12,7 @@ import SuperAdminDashboard from './pages/SuperAdminDashboard.jsx';
 import SuperAdminHospitals from './pages/SuperAdminHospitals.jsx';
 import SuperAdminExercises from './pages/SuperAdminExercises.jsx';
 import SuperAdminAddExercise from './pages/SuperAdminAddExercise.jsx';
+import SuperAdminSystemStatus from './pages/SuperAdminSystemStatus.jsx';
 
 // Hospital Admin Pages
 import HospitalAdminDashboard from './pages/HospitalAdminDashboard.jsx';
@@ -49,6 +50,7 @@ function App() {
         <Route path="/super-admin/hospitals" element={<SuperAdminHospitals />} />
         <Route path="/super-admin/exercises" element={<SuperAdminExercises />} />
         <Route path="/super-admin/add-exercise" element={<SuperAdminAddExercise />} />
+        <Route path="/super-admin/status" element={<SuperAdminSystemStatus />} />
 
         {/* ------------------- Hospital Admin URLs ------------------- */}
         <Route path="/hospital-admin" element={<HospitalAdminDashboard />} />
@@ -67,7 +69,7 @@ function App() {
         {/* ------------------- Doctor URLs ------------------- */}
         <Route path="/doctor-home" element={<DoctorHome />} />
         <Route path="/patient-status" element={<PatientStatusPage />} />
-        <Route path="/new-assignment" element={<NewAssignmentForm onCreated={() => {}} />} />
+        <Route path="/new-assignment" element={<NewAssignmentForm onCreated={() => { }} />} />
         <Route path="/doctor-profile" element={<D_Profile />} />
       </Routes>
     </BrowserRouter>

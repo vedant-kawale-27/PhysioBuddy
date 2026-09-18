@@ -6,6 +6,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
 
     # Common & Auth API endpoints
+    path('api/csrf/', views.csrf_api),
+    path('api/csrf-cookie/', views.csrf_api),
     path('api/login/', views.login_api),
     path('api/logout/', views.logout_api),
     path('api/auth/me/', views.get_current_user_api),
@@ -14,8 +16,9 @@ urlpatterns = [
     # Super Admin API endpoints
     path('api/superadmin/login/', views.superadmin_login_api),
     path('api/superadmin/dashboard/', views.superadmin_dashboard_api),
+    path('api/superadmin/system-status/', views.superadmin_system_status_api),
+    path('api/superadmin/system-diagnostics/', views.superadmin_run_diagnostics_api),
     path('api/superadmin/hospitals/', views.superadmin_hospitals_api),
-    path('api/superadmin/hospitals/create/', views.register_hospital_api),
     path('api/superadmin/hospitals/<int:hospital_id>/', views.superadmin_hospital_detail_api),
     path('api/superadmin/exercises/', views.superadmin_get_exercises_api),
     path('api/superadmin/exercises/create/', views.superadmin_create_exercise_api),

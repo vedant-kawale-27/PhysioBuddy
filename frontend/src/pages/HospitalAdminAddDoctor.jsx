@@ -3,6 +3,7 @@ import { API_BASE } from '../config';
 import Navbar from '../Components/Navbar';
 import { useNavigate, Link } from 'react-router-dom';
 import LegalModal from '../Components/LegalModal';
+import { ensureCsrfToken } from '../csrf';
 
 export default function HospitalAdminAddDoctor() {
   const [formData, setFormData] = useState({
@@ -76,10 +77,12 @@ export default function HospitalAdminAddDoctor() {
     setSuccess(null);
 
     try {
+      const csrfToken = await ensureCsrfToken();
       const res = await fetch(`${API_BASE}/api/hospital-admin/doctors/create/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken,
         },
         credentials: 'include',
         body: JSON.stringify(formData),

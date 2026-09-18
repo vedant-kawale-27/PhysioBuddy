@@ -1,21 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../Components/Navbar'; // 1. Import shared Navbar
 import { API_BASE } from '../config';
-
-function getCookie(name) {
-  let cookieValue = null;
-  if (document.cookie && document.cookie !== '') {
-    const cookies = document.cookie.split(';');
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i].trim();
-      if (cookie.substring(0, name.length + 1) === (name + '=')) {
-        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-        break;
-      }
-    }
-  }
-  return cookieValue;
-}
+import { ensureCsrfToken } from '../csrf';
 
 export default function NewAssignmentForm({ onCreated }) {
   const [form, setForm] = useState({ patient: '', exercise: '', reps: '' });
@@ -51,7 +37,7 @@ export default function NewAssignmentForm({ onCreated }) {
     setSuccess(false);
 
     try {
-      const csrftoken = getCookie('csrftoken');
+      const csrftoken = await ensureCsrfToken();
       const res = await fetch(`${API_BASE}/api/submit-assignment/`, {
         method: 'POST',
         credentials: 'include',

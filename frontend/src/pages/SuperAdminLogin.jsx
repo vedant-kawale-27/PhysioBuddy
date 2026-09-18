@@ -20,6 +20,27 @@ const getCookie = (name) => {
   return cookieValue;
 };
 
+const ensureCsrfToken = async () => {
+  let csrfToken = getCookie('csrftoken');
+  if (csrfToken) return csrfToken;
+
+  try {
+    const response = await fetch(`${API_BASE}/api/csrf/`, {
+      method: "GET",
+      credentials: "include",
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.csrfToken) return data.csrfToken;
+    }
+  } catch (err) {
+    console.warn("CSRF bootstrap warning:", err);
+  }
+
+  return getCookie('csrftoken') || '';
+};
+
 export default function SuperAdminLogin() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [loading, setLoading] = useState(false);
@@ -45,14 +66,7 @@ export default function SuperAdminLogin() {
     const loginUrl = `${API_BASE}/api/superadmin/login/`;
 
     try {
-      let csrfToken = getCookie('csrftoken');
-      if (!csrfToken) {
-        await fetch(`${API_BASE}/api/login/`, {
-          method: "GET",
-          credentials: "include",
-        });
-        csrfToken = getCookie('csrftoken');
-      }
+      const csrfToken = await ensureCsrfToken();
 
       const response = await fetch(loginUrl, {
         method: "POST",

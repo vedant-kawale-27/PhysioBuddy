@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Navbar from '../Components/Navbar'; 
 import { API_BASE } from '../config';
-
-function getCookie(name) {
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  return match ? decodeURIComponent(match[2]) : '';
-}
+import { ensureCsrfToken } from '../csrf';
 
 export default function CustomerCare() {
   const [formData, setFormData] = useState({ subject: '', message: '' });
@@ -35,12 +31,13 @@ export default function CustomerCare() {
     setSuccess(false);
     
     try {
+      const csrfToken = await ensureCsrfToken();
       const res = await fetch(`${API_BASE}/api/patient/send-message/`, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCookie('csrftoken')
+          'X-CSRFToken': csrfToken
         },
         body: JSON.stringify({
           subject: formData.subject,

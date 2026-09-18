@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import Navbar from '../Components/Navbar'; // Import shared component
-import pb from "../assets/pb.png";
+import Navbar from '../Components/Navbar';
 import { API_BASE } from '../config';
-
-function getCookie(name) {
-  const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-  return match ? decodeURIComponent(match[2]) : '';
-}
+import { ensureCsrfToken } from '../csrf';
 
 // ── Exercise Chip Component ───────────────────────────────
 const ExerciseChip = ({ exercise, reps, isCompleted }) => {
@@ -65,12 +60,13 @@ export default function PatientStatusPage2() {
 
   const markAsRead = async (messageId) => {
     try {
+      const csrfToken = await ensureCsrfToken();
       const res = await fetch(`${API_BASE}/api/doctor/messages/mark-read/`, {
         method: 'POST',
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCookie('csrftoken')
+          'X-CSRFToken': csrfToken
         },
         body: JSON.stringify({ message_id: messageId })
       });
