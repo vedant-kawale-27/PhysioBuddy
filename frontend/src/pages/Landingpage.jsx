@@ -144,22 +144,22 @@ export default function Landingpage() {
                     <div className="flex justify-between items-center h-20">
                         {/* Logo */}
                         {/* Logo */}
-                    <div className="flex-shrink-0">
-                        <a href="/" aria-label="PhysioBuddy Home" className="flex items-center">
-                            {/* Light Mode Logo */}
-                            <img
-                                src={pb}
-                                alt="PhysioBuddy Logo"
-                                className="h-14 md:h-14 transition duration-500 dark:hidden"
-                            />
-                            {/* Dark Mode Logo */}
-                            <img
-                                src={pb}
-                                alt="PhysioBuddy Logo (Dark Mode)"
-                                className="h-14 md:h-14 transition duration-500 hidden dark:block"
-                            />
-                        </a>
-                    </div>
+                        <div className="flex-shrink-0">
+                            <a href="/" aria-label="PhysioBuddy Home" className="flex items-center">
+                                {/* Light Mode Logo */}
+                                <img
+                                    src={pb}
+                                    alt="PhysioBuddy Logo"
+                                    className="h-14 md:h-14 transition duration-500 dark:hidden"
+                                />
+                                {/* Dark Mode Logo */}
+                                <img
+                                    src={pb}
+                                    alt="PhysioBuddy Logo (Dark Mode)"
+                                    className="h-14 md:h-14 transition duration-500 hidden dark:block"
+                                />
+                            </a>
+                        </div>
 
                         {/* Desktop Navigation Links */}
                         <nav className="hidden md:flex space-x-10">
@@ -327,7 +327,7 @@ export default function Landingpage() {
                             {/* Horizontal line connector (hidden on mobile) */}
                             <div className="hidden lg:block absolute inset-0 h-1/2 w-full mt-24">
                                 <svg className="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                    <line x1="10" y1="50" x2="90" y2="50" stroke="#0e7490" strokeWidth="2" strokeDasharray="4 8" className="dark:stroke-cyan-500 opacity-50"/>
+                                    <line x1="10" y1="50" x2="90" y2="50" stroke="#0e7490" strokeWidth="2" strokeDasharray="4 8" className="dark:stroke-cyan-500 opacity-50" />
                                 </svg>
                             </div>
 

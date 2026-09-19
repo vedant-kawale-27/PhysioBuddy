@@ -4,8 +4,9 @@ import time
 import sys
 import os
 import platform
+import random
 import django
-from django.contrib.auth import authenticate, login, logout, get_user_model
+from django.contrib.auth import authenticate, login, logout, get_user_model, update_session_auth_hash
 from django.http import JsonResponse, Http404
 from django.shortcuts import get_object_or_404
 from .models import Hospital, PatientProfile, DoctorProfile, AssignedExercise, Exercise, Message
@@ -15,6 +16,7 @@ from django.middleware.csrf import get_token
 from django.db import transaction, connection
 from django.conf import settings
 from .consumers import ExerciseConsumer, LandmarkMock
+from .emails import send_credentials_email, send_password_reset_email
 
 User = get_user_model()
 
@@ -174,6 +176,198 @@ def superadmin_login_api(request):
 
 
 @csrf_exempt
+def forgot_password_api(request):
+    """
+    Finds a user by email, username, or phone number.
+    If found, generates a new temporary password, updates the user's password,
+    and sends an automated credentials email to their registered email address.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        raw_query = data.get('identifier', data.get('email', '')).strip()
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON format'}, status=400)
+
+    if not raw_query:
+        return JsonResponse({'error': 'Please enter your registered Email, Username, or Mobile Phone Number.'}, status=400)
+
+    user_obj = None
+    role = None
+    hospital_name = 'PhysioBuddy Clinic'
+
+    # 1. Look up by Email
+    user_obj = User.objects.filter(email__iexact=raw_query).first()
+
+    # 2. Look up by Username
+    if not user_obj:
+        user_obj = User.objects.filter(username__iexact=raw_query).first()
+
+    # 3. Look up by Phone Number (cleans non-digits for comparison)
+    if not user_obj:
+        clean_query = re.sub(r'[^0-9]', '', raw_query)
+        if len(clean_query) >= 6:
+            # Check Doctor profiles
+            doc = DoctorProfile.objects.filter(phone_number__icontains=clean_query).first()
+            if doc and doc.user:
+                user_obj = doc.user
+
+            # Check Patient profiles
+            if not user_obj:
+                pat = PatientProfile.objects.filter(phone_number__icontains=clean_query).first()
+                if pat and pat.user:
+                    user_obj = pat.user
+
+            # Check Hospital phone numbers
+            if not user_obj:
+                hosp = Hospital.objects.filter(phone_number__icontains=clean_query).first()
+                if hosp and hosp.admin:
+                    user_obj = hosp.admin
+
+    if not user_obj:
+        return JsonResponse({
+            'error': f"No account found matching '{raw_query}'. Please verify your email, username, or mobile number."
+        }, status=404)
+
+    # Silently reject super admin accounts — show generic not-found
+    if user_obj.is_superuser:
+        return JsonResponse({
+            'error': f"No account found matching '{raw_query}'. Please verify your email, username, or mobile number."
+        }, status=404)
+
+    if not user_obj.email or '@' not in user_obj.email:
+        return JsonResponse({
+            'error': f"Account '{user_obj.username}' does not have a registered email address to receive reset credentials. Please contact your hospital administrator for assistance."
+        }, status=400)
+
+    # Determine user role and hospital name
+    role = get_user_role(user_obj)
+    if role == 'doctor' and hasattr(user_obj, 'doctorprofile'):
+        doc = user_obj.doctorprofile
+        hospital_name = doc.hospital.name if doc.hospital else (doc.hospital_name or 'PhysioBuddy Clinic')
+    elif role == 'patient' and hasattr(user_obj, 'patientprofile'):
+        pat = user_obj.patientprofile
+        hospital_name = pat.hospital.name if pat.hospital else 'PhysioBuddy Clinic'
+    elif role == 'hospital_admin' and hasattr(user_obj, 'managed_hospital'):
+        hospital_name = user_obj.managed_hospital.name
+
+    # Generate temporary password
+    prefix = 'Doc' if role == 'doctor' else ('Pat' if role == 'patient' else 'Pass')
+    random_digits = ''.join(random.choices('0123456789', k=4))
+    temp_password = f"{prefix}@{random_digits}"
+
+    # Update password in database
+    user_obj.set_password(temp_password)
+    user_obj.save()
+
+    # Mask email for privacy in response (e.g. s***h@gmail.com)
+    email_parts = user_obj.email.split('@')
+    name_part = email_parts[0]
+    domain_part = email_parts[1] if len(email_parts) > 1 else ''
+    if len(name_part) <= 2:
+        masked_name = name_part[0] + '*'
+    else:
+        masked_name = name_part[0] + '*' * (len(name_part) - 2) + name_part[-1]
+    masked_email = f"{masked_name}@{domain_part}"
+
+    full_name = f"{user_obj.first_name} {user_obj.last_name}".strip()
+    display_name = full_name if full_name else user_obj.username
+
+    # Send temporary password email
+    send_password_reset_email(
+        user_email=user_obj.email,
+        full_name=display_name,
+        username=user_obj.username,
+        temp_password=temp_password,
+        role=role or 'user',
+        hospital_name=hospital_name
+    )
+
+    return JsonResponse({
+        'success': True,
+        'message': f"A new temporary password has been successfully generated and sent to your registered email address ({masked_email}). Please check your inbox and log in.",
+        'masked_email': masked_email,
+        'username': user_obj.username
+    }, status=200)
+
+
+@csrf_exempt
+def superadmin_forgot_password_api(request):
+    """
+    Dedicated password recovery for Super Admin accounts only.
+    Searches only superuser accounts by email or username.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+    try:
+        data = json.loads(request.body)
+        raw_query = data.get('identifier', data.get('email', '')).strip()
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON format'}, status=400)
+
+    if not raw_query:
+        return JsonResponse({'error': 'Please enter your Super Admin email or username.'}, status=400)
+
+    user_obj = None
+
+    # Only search among superusers
+    user_obj = User.objects.filter(email__iexact=raw_query, is_superuser=True).first()
+    if not user_obj:
+        user_obj = User.objects.filter(username__iexact=raw_query, is_superuser=True).first()
+
+    if not user_obj:
+        return JsonResponse({
+            'error': f"No Super Admin account found matching '{raw_query}'. Verify your admin email or username."
+        }, status=404)
+
+    if not user_obj.email or '@' not in user_obj.email:
+        return JsonResponse({
+            'error': f"Super Admin account '{user_obj.username}' does not have a registered email address. Contact platform support."
+        }, status=400)
+
+    # Generate temporary password
+    random_digits = ''.join(random.choices('0123456789', k=6))
+    temp_password = f"Root@{random_digits}"
+
+    # Update password in database
+    user_obj.set_password(temp_password)
+    user_obj.save()
+
+    # Mask email for privacy
+    email_parts = user_obj.email.split('@')
+    name_part = email_parts[0]
+    domain_part = email_parts[1] if len(email_parts) > 1 else ''
+    if len(name_part) <= 2:
+        masked_name = name_part[0] + '*'
+    else:
+        masked_name = name_part[0] + '*' * (len(name_part) - 2) + name_part[-1]
+    masked_email = f"{masked_name}@{domain_part}"
+
+    full_name = f"{user_obj.first_name} {user_obj.last_name}".strip()
+    display_name = full_name if full_name else user_obj.username
+
+    # Send temporary password email
+    send_password_reset_email(
+        user_email=user_obj.email,
+        full_name=display_name,
+        username=user_obj.username,
+        temp_password=temp_password,
+        role='superadmin',
+        hospital_name='PhysioBuddy Master Platform'
+    )
+
+    return JsonResponse({
+        'success': True,
+        'message': f"A new temporary root password has been sent to your registered email ({masked_email}). Check your inbox and log in.",
+        'masked_email': masked_email,
+        'username': user_obj.username
+    }, status=200)
+
+
+@csrf_exempt
 def logout_api(request):
     """
     Logs out the user and destroys the active session.
@@ -264,6 +458,16 @@ def register_hospital_api(request):
                 phone_number=phone_number,
                 email=admin_email
             )
+
+        # Send automated welcome credentials email to Hospital Admin
+        send_credentials_email(
+            user_email=admin_email,
+            full_name=admin_username,
+            username=admin_username,
+            temp_password=admin_password,
+            role='hospital_admin',
+            hospital_name=hospital.name
+        )
 
         return JsonResponse({
             'message': f"Hospital '{hospital.name}' registered successfully!",
@@ -995,6 +1199,17 @@ def hospital_admin_create_doctor_api(request):
 
         full_name = f"{first_name} {middle_name} {last_name}".replace('  ', ' ').strip()
         display_name = full_name if full_name else username
+
+        # Send automated welcome credentials email to Doctor
+        send_credentials_email(
+            user_email=email,
+            full_name=display_name,
+            username=username,
+            temp_password=password,
+            role='doctor',
+            hospital_name=hospital.name
+        )
+
         return JsonResponse({'message': f"Doctor 'Dr. {display_name}' added successfully to {hospital.name}"}, status=201)
 
     except json.JSONDecodeError:
@@ -1136,6 +1351,17 @@ def hospital_admin_create_patient_api(request):
 
         full_name = f"{first_name} {middle_name} {last_name}".replace('  ', ' ').strip()
         display_name = full_name if full_name else username
+
+        # Send automated welcome credentials email to Patient
+        send_credentials_email(
+            user_email=email,
+            full_name=display_name,
+            username=username,
+            temp_password=password,
+            role='patient',
+            hospital_name=hospital.name
+        )
+
         return JsonResponse({'message': f"Patient '{display_name}' added successfully to {hospital.name}"}, status=201)
 
     except json.JSONDecodeError:
@@ -1303,23 +1529,136 @@ def doctor_profile_api(request):
 
     try:
         doctor = get_object_or_404(DoctorProfile, user=request.user)
+        full_name = f"{doctor.user.first_name} {doctor.user.last_name}".strip()
+
+        raw_first = doctor.user.first_name.strip() if doctor.user.first_name else ''
+        first_parts = raw_first.split(' ', 1) if raw_first else ['', '']
+        first_name = first_parts[0] if len(first_parts) > 0 else ''
+        middle_name = first_parts[1] if len(first_parts) > 1 else ''
+
         doctor_details = {
+            "username": doctor.user.username,
             "doctor_name": doctor.user.username,
-            "phone_number": doctor.phone_number,
-            "email": doctor.user.email,
-            "specialization": doctor.speciality,
-            "qualification": doctor.qualification,
-            "gender": doctor.gender,
-            "city": doctor.city,
-            "hospital_name": doctor.hospital.name if doctor.hospital else doctor.hospital_name,
-            "experience_years": doctor.experience_years,
-            "professional_summary": doctor.professional_summary,
-            "doctor_image": doctor.image_base64
+            "first_name": first_name,
+            "middle_name": middle_name,
+            "last_name": doctor.user.last_name or '',
+            "full_name": full_name if full_name else doctor.user.username,
+            "phone_number": doctor.phone_number or '',
+            "email": doctor.user.email or '',
+            "specialization": doctor.speciality or '',
+            "speciality": doctor.speciality or '',
+            "qualification": doctor.qualification or '',
+            "gender": doctor.gender or '',
+            "city": doctor.city or '',
+            "hospital_name": doctor.hospital.name if doctor.hospital else (doctor.hospital_name or 'PhysioBuddy Clinic'),
+            "experience_years": doctor.experience_years or 0,
+            "professional_summary": doctor.professional_summary or '',
+            "doctor_image": doctor.image_base64 or ''
         }
         return JsonResponse(doctor_details, status=200)
 
     except Http404:
         return JsonResponse({"error": "Doctor profile not found"}, status=404)
+
+
+def doctor_update_profile_api(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+
+    if request.method != 'POST':
+        return JsonResponse({"error": "Invalid request method"}, status=405)
+
+    try:
+        doctor = get_object_or_404(DoctorProfile, user=request.user)
+        data = json.loads(request.body)
+
+        first_name = data.get('first_name', '').strip()
+        middle_name = data.get('middle_name', '').strip()
+        last_name = data.get('last_name', '').strip()
+        email = data.get('email', '').strip()
+        phone_number = data.get('phone_number', '').strip()
+        speciality = data.get('speciality', data.get('specialization', '')).strip()
+        qualification = data.get('qualification', '').strip()
+        gender = data.get('gender', '').strip()
+        city = data.get('city', '').strip()
+        experience_years = data.get('experience_years')
+        professional_summary = data.get('professional_summary', '').strip()
+        new_password = data.get('new_password', '').strip()
+
+        # Check email uniqueness if changed
+        if email and email.lower() != doctor.user.email.lower():
+            if User.objects.filter(email__iexact=email).exclude(id=doctor.user.id).exists():
+                return JsonResponse({'error': f"Email '{email}' is already in use by another account."}, status=400)
+
+        # Update User fields
+        full_first = f"{first_name} {middle_name}".strip() if middle_name else first_name
+        doctor.user.first_name = full_first
+        if last_name is not None:
+            doctor.user.last_name = last_name
+        if email:
+            doctor.user.email = email
+
+        # Password update if requested
+        password_updated = False
+        if new_password:
+            if len(new_password) < 6:
+                return JsonResponse({'error': 'New password must be at least 6 characters long.'}, status=400)
+            doctor.user.set_password(new_password)
+            password_updated = True
+
+        doctor.user.save()
+
+        # Update DoctorProfile fields
+        if speciality:
+            doctor.speciality = speciality
+        if qualification:
+            doctor.qualification = qualification
+        if phone_number is not None:
+            doctor.phone_number = phone_number
+        if gender:
+            doctor.gender = gender
+        if city is not None:
+            doctor.city = city
+        if experience_years is not None:
+            try:
+                doctor.experience_years = int(experience_years) if str(experience_years).strip() != '' else None
+            except (ValueError, TypeError):
+                doctor.experience_years = None
+        if professional_summary is not None:
+            doctor.professional_summary = professional_summary
+
+        doctor.save()
+
+        if password_updated:
+            update_session_auth_hash(request, doctor.user)
+
+        full_name = f"{doctor.user.first_name} {doctor.user.last_name}".strip()
+        return JsonResponse({
+            'message': 'Doctor profile updated successfully!' + (' Password was updated.' if password_updated else ''),
+            'doctor': {
+                "username": doctor.user.username,
+                "first_name": first_name,
+                "middle_name": middle_name,
+                "last_name": doctor.user.last_name,
+                "full_name": full_name if full_name else doctor.user.username,
+                "phone_number": doctor.phone_number or '',
+                "email": doctor.user.email,
+                "specialization": doctor.speciality,
+                "speciality": doctor.speciality,
+                "qualification": doctor.qualification,
+                "gender": doctor.gender or '',
+                "city": doctor.city or '',
+                "hospital_name": doctor.hospital.name if doctor.hospital else (doctor.hospital_name or 'PhysioBuddy Clinic'),
+                "experience_years": doctor.experience_years or 0,
+                "professional_summary": doctor.professional_summary or '',
+                "doctor_image": doctor.image_base64 or ''
+            }
+        }, status=200)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON format'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 def update_doctor_image(request):
@@ -1479,25 +1818,173 @@ def submit_assignment(request):
 # ==========================================
 
 def patient_profile_api(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+
     try:
         patient = get_object_or_404(PatientProfile, user=request.user)
+        full_name = f"{patient.user.first_name} {patient.user.last_name}".strip()
+
+        raw_first = patient.user.first_name.strip() if patient.user.first_name else ''
+        first_parts = raw_first.split(' ', 1) if raw_first else ['', '']
+        first_name = first_parts[0] if len(first_parts) > 0 else ''
+        middle_name = first_parts[1] if len(first_parts) > 1 else ''
+
+        doc_display = 'Not Assigned'
+        if patient.doctor:
+            doc_name = f"Dr. {patient.doctor.user.first_name} {patient.doctor.user.last_name}".strip()
+            doc_display = doc_name if (patient.doctor.user.first_name or patient.doctor.user.last_name) else f"Dr. {patient.doctor.user.username}"
+
+        formatted_dob = ''
+        if patient.date_of_birth:
+            if hasattr(patient.date_of_birth, 'strftime'):
+                formatted_dob = patient.date_of_birth.strftime('%Y-%m-%d')
+            else:
+                formatted_dob = str(patient.date_of_birth)
+
+        patient_details = {
+            'username': patient.user.username,
+            'patient_name': patient.user.username,
+            'first_name': first_name,
+            'middle_name': middle_name,
+            'last_name': patient.user.last_name or '',
+            'full_name': full_name if full_name else patient.user.username,
+            'phone_number': patient.phone_number or '',
+            'email': patient.user.email or '',
+            'dob': formatted_dob,
+            'gender': patient.gender or '',
+            'assigned_doctor': doc_display,
+            'hospital_name': patient.hospital.name if patient.hospital else 'PhysioBuddy Clinic',
+            'height': patient.height,
+            'weight': patient.weight,
+            'bg': patient.blood_group or '',
+            'blood_group': patient.blood_group or '',
+            'patient_image': patient.image_base64 or ''
+        }
+        return JsonResponse(patient_details, status=200)
+
     except Http404:
         return JsonResponse({'error': 'Patient profile not found'}, status=404)
 
-    patient_details = {
-        'patient_name': patient.user.username,
-        'phone_number': patient.phone_number,
-        'email': patient.user.email,
-        'dob': patient.date_of_birth,
-        'gender': patient.gender,
-        'assigned_doctor': patient.doctor.user.username if patient.doctor else 'Not Assigned',
-        'hospital_name': patient.hospital.name if patient.hospital else 'PhysioBuddy Clinic',
-        'height': patient.height,
-        'weight': patient.weight,
-        'bg': patient.blood_group,
-        'patient_image': patient.image_base64
-    }
-    return JsonResponse(patient_details, status=200)
+
+def patient_update_profile_api(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Authentication required"}, status=401)
+
+    if request.method != 'POST':
+        return JsonResponse({"error": "Invalid request method"}, status=405)
+
+    try:
+        patient = get_object_or_404(PatientProfile, user=request.user)
+        data = json.loads(request.body)
+
+        first_name = data.get('first_name', '').strip()
+        middle_name = data.get('middle_name', '').strip()
+        last_name = data.get('last_name', '').strip()
+        email = data.get('email', '').strip()
+        phone_number = data.get('phone_number', '').strip()
+        dob = data.get('dob')
+        gender = data.get('gender', '').strip()
+        height = data.get('height')
+        weight = data.get('weight')
+        blood_group = data.get('blood_group', data.get('bg', '')).strip()
+        new_password = data.get('new_password', '').strip()
+
+        # Check email uniqueness if changed
+        if email and email.lower() != patient.user.email.lower():
+            if User.objects.filter(email__iexact=email).exclude(id=patient.user.id).exists():
+                return JsonResponse({'error': f"Email '{email}' is already in use by another account."}, status=400)
+
+        # Update User fields
+        full_first = f"{first_name} {middle_name}".strip() if middle_name else first_name
+        patient.user.first_name = full_first
+        if last_name is not None:
+            patient.user.last_name = last_name
+        if email:
+            patient.user.email = email
+
+        # Password update if requested
+        password_updated = False
+        if new_password:
+            if len(new_password) < 6:
+                return JsonResponse({'error': 'New password must be at least 6 characters long.'}, status=400)
+            patient.user.set_password(new_password)
+            password_updated = True
+
+        patient.user.save()
+
+        # Update PatientProfile fields
+        if phone_number is not None:
+            patient.phone_number = phone_number
+        if dob:
+            if isinstance(dob, str) and dob.strip():
+                patient.date_of_birth = dob.strip()
+            elif hasattr(dob, 'strftime'):
+                patient.date_of_birth = dob
+            else:
+                patient.date_of_birth = None
+        else:
+            patient.date_of_birth = None
+
+        if gender:
+            patient.gender = gender
+        if height is not None:
+            try:
+                patient.height = int(height) if str(height).strip() != '' else None
+            except (ValueError, TypeError):
+                patient.height = None
+        if weight is not None:
+            try:
+                patient.weight = int(weight) if str(weight).strip() != '' else None
+            except (ValueError, TypeError):
+                patient.weight = None
+        if blood_group is not None:
+            patient.blood_group = blood_group if blood_group else None
+
+        patient.save()
+
+        if password_updated:
+            update_session_auth_hash(request, patient.user)
+
+        full_name = f"{patient.user.first_name} {patient.user.last_name}".strip()
+        doc_display = 'Not Assigned'
+        if patient.doctor:
+            doc_name = f"Dr. {patient.doctor.user.first_name} {patient.doctor.user.last_name}".strip()
+            doc_display = doc_name if (patient.doctor.user.first_name or patient.doctor.user.last_name) else f"Dr. {patient.doctor.user.username}"
+
+        formatted_dob = ''
+        if patient.date_of_birth:
+            if hasattr(patient.date_of_birth, 'strftime'):
+                formatted_dob = patient.date_of_birth.strftime('%Y-%m-%d')
+            else:
+                formatted_dob = str(patient.date_of_birth)
+
+        return JsonResponse({
+            'message': 'Patient profile updated successfully!' + (' Password was updated.' if password_updated else ''),
+            'patient': {
+                'username': patient.user.username,
+                'first_name': first_name,
+                'middle_name': middle_name,
+                'last_name': patient.user.last_name,
+                'full_name': full_name if full_name else patient.user.username,
+                'phone_number': patient.phone_number or '',
+                'email': patient.user.email,
+                'dob': formatted_dob,
+                'gender': patient.gender or '',
+                'assigned_doctor': doc_display,
+                'hospital_name': patient.hospital.name if patient.hospital else 'PhysioBuddy Clinic',
+                'height': patient.height,
+                'weight': patient.weight,
+                'bg': patient.blood_group or '',
+                'blood_group': patient.blood_group or '',
+                'patient_image': patient.image_base64 or ''
+            }
+        }, status=200)
+
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON format'}, status=400)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
 
 
 def get_exercise_list(request):
