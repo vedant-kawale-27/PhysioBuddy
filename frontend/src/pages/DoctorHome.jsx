@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import Navbar from '../Components/Navbar'; 
+import Navbar from '../Components/Navbar';
 import { API_BASE } from '../config';
 
 function HomeContent({ stats, doctorName }) {

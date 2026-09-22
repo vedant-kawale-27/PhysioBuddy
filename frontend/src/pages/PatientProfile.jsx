@@ -230,7 +230,7 @@ export default function PatientProfile() {
   const displayName = profile?.full_name || [profile?.first_name, profile?.middle_name, profile?.last_name].filter(Boolean).join(' ') || profile?.username || 'Patient';
 
   return (
-    <div className="min-h-screen w-full font-[Inter] bg-gradient-to-br from-slate-50 via-teal-50/40 to-cyan-50/30 dark:from-gray-950 dark:via-gray-900 dark:to-slate-900 text-gray-900 dark:text-gray-100 transition-colors duration-500 flex flex-col">
+    <div className="min-h-screen w-full font-[Inter] bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-gray-950 dark:to-slate-900 text-gray-900 dark:text-gray-100 transition-colors duration-500 flex flex-col">
       <Navbar role="patient" />
 
       <main className="flex-1 px-4 sm:px-6 lg:px-8 py-8 overflow-y-auto">

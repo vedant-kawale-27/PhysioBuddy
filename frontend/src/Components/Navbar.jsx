@@ -56,6 +56,11 @@ export default function Navbar({ role }) {
     localStorage.setItem('theme', theme);
   }, [theme]);
 
+  // Close mobile drawer on route navigation
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
+
   // Toggle between dark and light themes
   const toggleTheme = () => setTheme(prev => prev === 'light' ? 'dark' : 'light');
 
@@ -221,23 +226,32 @@ export default function Navbar({ role }) {
         </div>
       </div>
 
-      {/* Mobile Menu Dropdown */}
+      {/* Mobile Menu Floating Dropdown Overlay */}
       {isMobileMenuOpen && (
-        <div className="md:hidden bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 p-4 space-y-1">
-          {navLinks.map((link) => (
-            <Link
-              key={link.name}
-              to={link.href}
-              onClick={() => setIsMobileMenuOpen(false)}
-              className={`block py-3 px-4 text-base font-bold rounded-lg transition ${isActive(link.href)
-                  ? 'bg-cyan-50 dark:bg-cyan-950/50 text-cyan-600 dark:text-cyan-400'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
-            >
-              {link.name}
-            </Link>
-          ))}
-        </div>
+        <>
+          {/* Backdrop to dismiss when clicking outside */}
+          <div 
+            className="fixed inset-0 top-20 bg-black/20 dark:bg-black/50 backdrop-blur-xs z-40 md:hidden animate-in fade-in duration-200"
+            onClick={() => setIsMobileMenuOpen(false)}
+            aria-hidden="true"
+          />
+
+          <div className="absolute top-full left-0 w-full bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800 p-4 space-y-1 shadow-2xl z-50 md:hidden animate-in slide-in-from-top-2 duration-200">
+            {navLinks.map((link) => (
+              <Link
+                key={link.name}
+                to={link.href}
+                onClick={() => setIsMobileMenuOpen(false)}
+                className={`block py-3 px-4 text-base font-bold rounded-xl transition ${isActive(link.href)
+                    ? 'bg-cyan-50 dark:bg-cyan-950/50 text-cyan-600 dark:text-cyan-400'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'
+                  }`}
+              >
+                {link.name}
+              </Link>
+            ))}
+          </div>
+        </>
       )}
     </nav>
   );

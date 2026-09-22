@@ -59,5 +59,6 @@ urlpatterns = [
     path('api/patient/send-message/', views.send_message_api),
     path('api/patient/messages/', views.get_patient_messages_api),
     path('api/doctor/messages/', views.get_doctor_messages_api),
+    path('api/doctor/send-message/', views.doctor_send_message_api),
     path('api/doctor/messages/mark-read/', views.mark_message_read_api),
 ]

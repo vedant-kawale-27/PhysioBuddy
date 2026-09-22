@@ -1,4 +1,5 @@
 import json
+import datetime
 import re
 import time
 import sys
@@ -1681,8 +1682,8 @@ def update_doctor_image(request):
 
 def get_patient_status(request):
     """
-    Returns today's exercise assignment and completion status for patients
-    strictly belonging to the authenticated doctor within the same hospital tenant.
+    Returns exercise assignment and completion status (including today's exercises and historical assignments)
+    for patients strictly belonging to the authenticated doctor within the same hospital tenant.
     """
     if not request.user.is_authenticated:
         return JsonResponse({'error': 'Authentication required'}, status=401)
@@ -1697,33 +1698,88 @@ def get_patient_status(request):
     else:
         patients = PatientProfile.objects.filter(doctor=curr_doc)
 
+    today = timezone.now().date()
     patient_data_list = []
     for patient in patients:
         assigned_exercises = AssignedExercise.objects.filter(
             patient=patient,
-            assigned_by=curr_doc,
-            date_assigned__date=timezone.now().date()
-        )
-        exe_list = [
-            {
-                'exercise_name': assigned_exercise.exercise.name,
-                'reps': assigned_exercise.target_reps,
-                'is_completed': assigned_exercise.is_completed
+            assigned_by=curr_doc
+        ).select_related('exercise').order_by('-date_assigned')
+
+        today_exercises = []
+        history_by_date = {}
+        upcoming_by_date = {}
+
+        for ae in assigned_exercises:
+            ae_date = ae.date_assigned.date() if ae.date_assigned else today
+            date_str = ae_date.strftime('%Y-%m-%d')
+            time_str = ae.assigned_time.strftime('%I:%M %p') if ae.assigned_time else (ae.date_assigned.strftime('%I:%M %p') if ae.date_assigned else '')
+            is_uncompleted = (ae_date < today and not ae.is_completed)
+            status = 'completed' if ae.is_completed else ('uncompleted' if ae_date < today else ('today_pending' if ae_date == today else 'upcoming'))
+
+            ex_info = {
+                'id': ae.id,
+                'exercise_name': ae.exercise.name,
+                'reps': ae.target_reps,
+                'is_completed': ae.is_completed,
+                'is_uncompleted': is_uncompleted,
+                'status': status,
+                'date': date_str,
+                'time': time_str,
+                'date_assigned': ae.date_assigned.isoformat() if ae.date_assigned else None
             }
-            for assigned_exercise in assigned_exercises
+
+            if ae_date == today:
+                today_exercises.append(ex_info)
+            elif ae_date < today:
+                if date_str not in history_by_date:
+                    history_by_date[date_str] = []
+                history_by_date[date_str].append(ex_info)
+            elif ae_date > today:
+                if date_str not in upcoming_by_date:
+                    upcoming_by_date[date_str] = []
+                upcoming_by_date[date_str].append(ex_info)
+
+        history_list = [
+            {
+                'date': d,
+                'exercises': items,
+                'completed_count': sum(1 for item in items if item['is_completed']),
+                'uncompleted_count': sum(1 for item in items if not item['is_completed']),
+                'total_count': len(items)
+            }
+            for d, items in sorted(history_by_date.items(), key=lambda x: x[0], reverse=True)
         ]
-        if exe_list:
-            patient_data_list.append({
-                'name': patient.user.username,
-                'assigned_exercises': exe_list
-            })
+
+        upcoming_list = [
+            {
+                'date': d,
+                'exercises': items,
+                'completed_count': sum(1 for item in items if item['is_completed']),
+                'uncompleted_count': sum(1 for item in items if not item['is_completed']),
+                'total_count': len(items)
+            }
+            for d, items in sorted(upcoming_by_date.items(), key=lambda x: x[0])
+        ]
+
+        patient_data_list.append({
+            'id': patient.id,
+            'name': patient.user.username,
+            'full_name': patient.user.get_full_name() or patient.user.username,
+            'phone_number': patient.phone_number or '',
+            'assigned_exercises': today_exercises,
+            'upcoming': upcoming_list,
+            'total_upcoming_count': sum(len(u['exercises']) for u in upcoming_list),
+            'history': history_list,
+            'total_history_count': sum(len(h['exercises']) for h in history_list)
+        })
 
     return JsonResponse(patient_data_list, safe=False, status=200)
 
 
 def my_patients(request):
     """
-    Returns patient usernames belonging to the authenticated doctor within the same hospital tenant.
+    Returns patient usernames and detailed patient & exercise lists belonging to the authenticated doctor within the same hospital tenant.
     """
     if not request.user.is_authenticated:
         return JsonResponse({'error': 'Authentication required'}, status=401)
@@ -1734,27 +1790,51 @@ def my_patients(request):
         return JsonResponse({'message': "Can't find the doctor!!!"}, status=404)
 
     if curr_doc.hospital:
-        patients = PatientProfile.objects.filter(doctor=curr_doc, hospital=curr_doc.hospital)
+        patients = PatientProfile.objects.filter(doctor=curr_doc, hospital=curr_doc.hospital).select_related('user')
     else:
-        patients = PatientProfile.objects.filter(doctor=curr_doc)
+        patients = PatientProfile.objects.filter(doctor=curr_doc).select_related('user')
 
-    exercises = Exercise.objects.all()
+    exercises = Exercise.objects.all().order_by('name')
 
-    patient_data_list = [patient.user.username for patient in patients]
-    exercise_list = [exercise.name for exercise in exercises]
+    patient_usernames = [patient.user.username for patient in patients]
+    patient_details = [
+        {
+            'id': patient.id,
+            'username': patient.user.username,
+            'full_name': patient.user.get_full_name() or patient.user.username,
+            'phone_number': patient.phone_number or '',
+            'gender': patient.gender or '',
+        }
+        for patient in patients
+    ]
+
+    exercise_names = [exercise.name for exercise in exercises]
+    exercise_details = [
+        {
+            'id': exercise.id,
+            'name': exercise.name,
+            'description': exercise.description or '',
+            'thumbnail_image_url': exercise.thumbnail_image_url or '',
+            'demo_video_url': exercise.demo_video_url or ''
+        }
+        for exercise in exercises
+    ]
 
     return JsonResponse({
-        'patients': patient_data_list,
-        'exercises': exercise_list
+        'patients': patient_usernames,
+        'patient_details': patient_details,
+        'exercises': exercise_names,
+        'exercise_details': exercise_details
     }, status=200)
 
 
 def submit_assignment(request):
     """
-    Creates a new exercise assignment for a patient.
-    Strictly enforces tenant ownership:
-    1. The patient and doctor must belong to the same hospital tenant.
-    2. The doctor must either be the assigned physician or an authorized clinician within the same hospital.
+    Creates new exercise assignment(s) for a patient across specified durations of days.
+    Supports both:
+    1. Multiple exercises in a single batch: `assignments: [{ exercise_name, repetitions, days }]`
+    2. Single legacy exercise payload: `{ exercise_name, repetitions, days }`
+    Strictly enforces tenant ownership and doctor permissions.
     """
     if request.method != 'POST':
         return JsonResponse({'error': 'Invalid request method'}, status=405)
@@ -1764,15 +1844,12 @@ def submit_assignment(request):
 
     try:
         data = json.loads(request.body)
-        patient_name = data.get('patient_name')
-        exercise_name = data.get('exercise_name')
-        rep_count = data.get('repetitions')
-
-        if not all([patient_name, exercise_name, rep_count]):
-            return JsonResponse({'error': 'Missing required fields'}, status=400)
-
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+        return JsonResponse({'error': 'Invalid JSON format'}, status=400)
+
+    patient_name = data.get('patient_name')
+    if not patient_name:
+        return JsonResponse({'error': 'Patient name is required.'}, status=400)
 
     try:
         doctor_obj = DoctorProfile.objects.get(user=request.user)
@@ -1782,12 +1859,7 @@ def submit_assignment(request):
     try:
         patient_obj = PatientProfile.objects.get(user__username=patient_name)
     except PatientProfile.DoesNotExist:
-        return JsonResponse({'error': 'Patient doesn\'t exist'}, status=404)
-
-    try:
-        exercise_obj = Exercise.objects.get(name=exercise_name)
-    except Exercise.DoesNotExist:
-        return JsonResponse({'error': 'Exercise doesn\'t exist'}, status=404)
+        return JsonResponse({'error': f"Patient '@{patient_name}' does not exist."}, status=404)
 
     # Enforce same-hospital tenant ownership
     if doctor_obj.hospital and patient_obj.hospital != doctor_obj.hospital:
@@ -1803,14 +1875,84 @@ def submit_assignment(request):
             status=403
         )
 
-    assignment = AssignedExercise(
-        patient=patient_obj,
-        assigned_by=doctor_obj,
-        exercise=exercise_obj,
-        target_reps=rep_count
-    )
-    assignment.save()
-    return JsonResponse({'message': 'Assignment created successfully'}, status=201)
+    # Normalize assignments list (supports both single payload and multi-exercise array)
+    raw_assignments = data.get('assignments')
+    if raw_assignments is None:
+        # Legacy single exercise payload format
+        raw_assignments = [{
+            'exercise_name': data.get('exercise_name'),
+            'repetitions': data.get('repetitions'),
+            'days': data.get('days', 1)
+        }]
+
+    if not isinstance(raw_assignments, list) or len(raw_assignments) == 0:
+        return JsonResponse({'error': 'At least one exercise assignment must be provided.'}, status=400)
+
+    # Validate and build assignment records
+    now = timezone.now()
+    created_assignments = []
+    exercise_cache = {}
+    summary_list = []
+
+    for idx, item in enumerate(raw_assignments):
+        ex_name = item.get('exercise_name')
+        if not ex_name:
+            return JsonResponse({'error': f'Exercise name missing for item #{idx + 1}.'}, status=400)
+
+        try:
+            reps = int(item.get('repetitions', 0))
+            if reps <= 0 or reps > 500:
+                return JsonResponse({'error': f'Invalid repetition count for "{ex_name}". Must be between 1 and 500.'}, status=400)
+        except (ValueError, TypeError):
+            return JsonResponse({'error': f'Invalid repetition count for "{ex_name}".'}, status=400)
+
+        try:
+            days = int(item.get('days', 1))
+            if days < 1:
+                days = 1
+            elif days > 365:
+                days = 365
+        except (ValueError, TypeError):
+            days = 1
+
+        # Fetch exercise object
+        if ex_name not in exercise_cache:
+            try:
+                exercise_cache[ex_name] = Exercise.objects.get(name=ex_name)
+            except Exercise.DoesNotExist:
+                return JsonResponse({'error': f'Exercise "{ex_name}" does not exist in catalog.'}, status=404)
+
+        exercise_obj = exercise_cache[ex_name]
+
+        for day_offset in range(days):
+            assigned_date = now + datetime.timedelta(days=day_offset)
+            created_assignments.append(
+                AssignedExercise(
+                    patient=patient_obj,
+                    assigned_by=doctor_obj,
+                    exercise=exercise_obj,
+                    target_reps=reps,
+                    date_assigned=assigned_date,
+                    assigned_time=assigned_date.time()
+                )
+            )
+
+        summary_list.append({
+            'exercise': ex_name,
+            'repetitions': reps,
+            'days': days
+        })
+
+    if created_assignments:
+        AssignedExercise.objects.bulk_create(created_assignments)
+
+    ex_count = len(summary_list)
+    return JsonResponse({
+        'message': f'Successfully scheduled {ex_count} {"exercise" if ex_count == 1 else "exercises"} for @{patient_name} ({len(created_assignments)} daily sessions created).',
+        'exercises_assigned': ex_count,
+        'total_sessions': len(created_assignments),
+        'summary': summary_list
+    }, status=201)
 
 
 # ==========================================
@@ -1988,6 +2130,8 @@ def patient_update_profile_api(request):
 
 
 def get_exercise_list(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required.'}, status=401)
     if request.user.is_staff or request.user.is_superuser:
         return JsonResponse({'error': 'Permission denied.'}, status=403)
     try:
@@ -1995,25 +2139,92 @@ def get_exercise_list(request):
     except Http404:
         return JsonResponse({'error': 'Patient profile not found.'}, status=404)
 
+    today = timezone.now().date()
     assignments = AssignedExercise.objects.filter(
-        patient=patient_obj,
-        date_assigned__date=timezone.now().date()
-    ).select_related('exercise')
+        patient=patient_obj
+    ).select_related('exercise', 'assigned_by__user').order_by('-date_assigned')
 
-    assignments_list = []
+    today_list = []
+    upcoming_list = []
+    history_list = []
+    all_list = []
+
+    total_completed = 0
+    today_completed = 0
+
     for assignment in assignments:
-        assignments_list.append({
+        assignment_date = assignment.date_assigned.date() if assignment.date_assigned else today
+        is_today = assignment_date == today
+        is_past = assignment_date < today
+        is_future = assignment_date > today
+
+        doctor_name = "Prescribing Therapist"
+        if assignment.assigned_by and assignment.assigned_by.user:
+            doc_user = assignment.assigned_by.user
+            full_name = f"{doc_user.first_name} {doc_user.last_name}".strip()
+            doctor_name = f"Dr. {full_name}" if full_name else f"Dr. {doc_user.username}"
+
+        is_uncompleted = is_past and not assignment.is_completed
+        status = 'completed' if assignment.is_completed else ('uncompleted' if is_past else ('today_pending' if is_today else 'upcoming'))
+
+        item = {
             'patient_username': assignment.patient.user.username,
             'exercise_id': assignment.exercise.id,
             'assignment_id': assignment.id,
             'exercise_name': assignment.exercise.name,
-            'exercise_video_url': assignment.exercise.demo_video_url,
+            'exercise_description': assignment.exercise.description or '',
+            'exercise_video_url': assignment.exercise.demo_video_url or '',
+            'thumbnail_image_url': assignment.exercise.thumbnail_image_url or '',
             'target_reps': assignment.target_reps,
             'is_completed': assignment.is_completed,
-            'date_assigned': assignment.date_assigned.isoformat()
-        })
+            'is_uncompleted': is_uncompleted,
+            'status': status,
+            'date_assigned': assignment.date_assigned.isoformat() if assignment.date_assigned else None,
+            'assigned_time': assignment.assigned_time.strftime("%I:%M %p") if assignment.assigned_time else "",
+            'assigned_by_doctor': doctor_name,
+            'is_today': is_today,
+            'is_past': is_past,
+            'is_future': is_future
+        }
 
-    return JsonResponse(assignments_list, safe=False, status=200)
+        all_list.append(item)
+        if assignment.is_completed:
+            total_completed += 1
+
+        if is_today:
+            today_list.append(item)
+            if assignment.is_completed:
+                today_completed += 1
+        elif is_past:
+            history_list.append(item)
+        elif is_future:
+            upcoming_list.append(item)
+
+    upcoming_list.sort(key=lambda x: x['date_assigned'] or '')
+
+    total_assignments = len(all_list)
+    today_total = len(today_list)
+    upcoming_total = len(upcoming_list)
+    history_total = len(history_list)
+    past_and_today_total = today_total + history_total
+    completion_rate = round((total_completed / past_and_today_total * 100)) if past_and_today_total > 0 else 0
+
+    return JsonResponse({
+        'today': today_list,
+        'upcoming': upcoming_list,
+        'history': history_list,
+        'all': all_list,
+        'stats': {
+            'total_assigned': total_assignments,
+            'total_completed': total_completed,
+            'today_total': today_total,
+            'today_completed': today_completed,
+            'upcoming_total': upcoming_total,
+            'history_total': history_total,
+            'history_completed': len([h for h in history_list if h['is_completed']]),
+            'completion_rate': completion_rate
+        }
+    }, safe=False, status=200)
 
 
 def update_patient_image(request):
@@ -2091,7 +2302,7 @@ def update_completion_status(request):
 
 def send_message_api(request):
     """
-    Sends a message from a patient to their assigned doctor.
+    Sends a message from a patient to their assigned doctor (Chat System).
     Enforces that the assigned doctor belongs to the same hospital tenant.
     """
     if request.method != 'POST':
@@ -2102,7 +2313,7 @@ def send_message_api(request):
     try:
         patient = PatientProfile.objects.get(user=request.user)
     except PatientProfile.DoesNotExist:
-        return JsonResponse({'error': 'Only patients can send messages'}, status=403)
+        return JsonResponse({'error': 'Only patients can send patient messages'}, status=403)
 
     if not patient.doctor:
         return JsonResponse({'error': 'No therapist is currently assigned to your profile.'}, status=400)
@@ -2113,20 +2324,76 @@ def send_message_api(request):
 
     try:
         data = json.loads(request.body)
-        subject = data.get('subject')
-        message_text = data.get('message')
-        if not subject or not message_text:
-            return JsonResponse({'error': 'Subject and message are required.'}, status=400)
+        subject = data.get('subject', '').strip()
+        message_text = data.get('message', '').strip()
+        if not message_text:
+            return JsonResponse({'error': 'Message content cannot be empty.'}, status=400)
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
 
-    content = f"[{subject}] {message_text}"
+    content = f"[{subject}] {message_text}" if subject and subject.lower() != 'general inquiry' else message_text
     msg = Message.objects.create(
         patient=patient,
         doctor=patient.doctor,
+        sender_type='patient',
         content=content
     )
-    return JsonResponse({'message': 'Message sent successfully', 'id': msg.id}, status=200)
+    return JsonResponse({
+        'message': 'Message sent successfully',
+        'id': msg.id,
+        'created_at': msg.created_at.isoformat()
+    }, status=200)
+
+
+def doctor_send_message_api(request):
+    """
+    Sends a reply / message from a doctor to a patient (Chat System).
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+
+    try:
+        doctor = DoctorProfile.objects.get(user=request.user)
+    except DoctorProfile.DoesNotExist:
+        return JsonResponse({'error': 'Only doctors can send doctor replies'}, status=403)
+
+    try:
+        data = json.loads(request.body)
+        patient_name = data.get('patient_name')
+        patient_id = data.get('patient_id')
+        message_text = data.get('message', '').strip()
+        if not message_text:
+            return JsonResponse({'error': 'Message content cannot be empty.'}, status=400)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+
+    patient = None
+    if patient_id:
+        patient = PatientProfile.objects.filter(id=patient_id).first()
+    elif patient_name:
+        patient = PatientProfile.objects.filter(user__username=patient_name).first()
+
+    if not patient:
+        return JsonResponse({'error': 'Patient not found.'}, status=404)
+
+    # Enforce tenant check
+    if doctor.hospital and patient.hospital and doctor.hospital != patient.hospital:
+        return JsonResponse({'error': 'Permission denied: Patient belongs to a different hospital.'}, status=403)
+
+    msg = Message.objects.create(
+        patient=patient,
+        doctor=doctor,
+        sender_type='doctor',
+        content=message_text
+    )
+
+    return JsonResponse({
+        'message': 'Reply sent successfully',
+        'id': msg.id,
+        'created_at': msg.created_at.isoformat()
+    }, status=200)
 
 
 def get_patient_messages_api(request):
@@ -2134,21 +2401,77 @@ def get_patient_messages_api(request):
         return JsonResponse({'error': 'Authentication required'}, status=401)
 
     try:
-        patient = PatientProfile.objects.get(user=request.user)
+        patient = PatientProfile.objects.select_related('doctor__user', 'doctor__hospital', 'hospital').get(user=request.user)
     except PatientProfile.DoesNotExist:
         return JsonResponse({'error': 'Only patients can view these messages'}, status=403)
 
-    today = timezone.now().date()
-    messages = Message.objects.filter(patient=patient, created_at__date=today).order_by('created_at')
+    messages = Message.objects.filter(patient=patient).order_by('created_at')
+
+    # Automatically mark doctor messages as read when patient opens chat
+    Message.objects.filter(patient=patient, sender_type='doctor', is_read=False).update(is_read=True)
+
     msg_list = []
     for msg in messages:
+        raw_content = msg.content or ""
+        subject = "General Inquiry"
+        body = raw_content
+
+        # Parse [Subject] Body pattern if present
+        if raw_content.startswith("[") and "]" in raw_content:
+            end_idx = raw_content.find("]")
+            subject = raw_content[1:end_idx].strip()
+            body = raw_content[end_idx + 1:].strip()
+
+        sender_type = getattr(msg, 'sender_type', 'patient')
+        is_me = (sender_type == 'patient')
+
         msg_list.append({
             'id': msg.id,
-            'content': msg.content,
+            'sender_type': sender_type,
+            'is_me': is_me,
+            'sender_name': 'You' if is_me else (f"Dr. {patient.doctor.user.get_full_name() or patient.doctor.user.username}" if patient.doctor else 'Doctor'),
+            'subject': subject if is_me else None,
+            'body': body,
+            'content': raw_content,
             'is_read': msg.is_read,
             'created_at': msg.created_at.isoformat(),
+            'formatted_time': msg.created_at.strftime("%b %d, %Y • %I:%M %p"),
+            'time_only': msg.created_at.strftime("%I:%M %p"),
+            'date_only': msg.created_at.strftime("%b %d, %Y")
         })
-    return JsonResponse(msg_list, safe=False, status=200)
+
+    doctor_info = None
+    if patient.doctor and patient.doctor.user:
+        doc = patient.doctor
+        doc_user = doc.user
+        full_name = f"{doc_user.first_name} {doc_user.last_name}".strip()
+        doctor_info = {
+            'id': doc.id,
+            'name': f"Dr. {full_name}" if full_name else f"Dr. {doc_user.username}",
+            'speciality': doc.speciality or 'Physical Rehabilitation Specialist',
+            'qualification': doc.qualification or 'BPT, MPT Physiotherapy',
+            'phone_number': doc.phone_number or '',
+            'hospital_name': doc.hospital.name if doc.hospital else (doc.hospital_name or 'PhysioBuddy Clinic'),
+            'image_base64': doc.image_base64 or ''
+        }
+
+    hospital_info = None
+    hosp = patient.hospital or (patient.doctor.hospital if patient.doctor else None)
+    if hosp:
+        hospital_info = {
+            'name': hosp.name,
+            'phone_number': hosp.phone_number or '+1 (800) 123-4567',
+            'email': hosp.email or 'support@physiobuddy.com',
+            'address': hosp.address or '',
+            'city': hosp.city or ''
+        }
+
+    return JsonResponse({
+        'messages': msg_list,
+        'doctor': doctor_info,
+        'hospital': hospital_info,
+        'patient_name': patient.user.get_full_name() or patient.user.username
+    }, safe=False, status=200)
 
 
 def get_doctor_messages_api(request):
@@ -2160,16 +2483,21 @@ def get_doctor_messages_api(request):
     except DoctorProfile.DoesNotExist:
         return JsonResponse({'error': 'Only doctors can view these messages'}, status=403)
 
-    today = timezone.now().date()
-    messages = Message.objects.filter(doctor=doctor, created_at__date=today).order_by('-created_at')
+    messages = Message.objects.filter(doctor=doctor).select_related('patient__user').order_by('created_at')
     msg_list = []
     for msg in messages:
+        sender_type = getattr(msg, 'sender_type', 'patient')
         msg_list.append({
             'id': msg.id,
-            'patient_name': msg.patient.user.username,
+            'patient_id': msg.patient.id,
+            'patient_name': msg.patient.user.get_full_name() or msg.patient.user.username,
+            'patient_username': msg.patient.user.username,
+            'sender_type': sender_type,
+            'is_from_doctor': (sender_type == 'doctor'),
             'content': msg.content,
             'is_read': msg.is_read,
             'created_at': msg.created_at.isoformat(),
+            'formatted_time': msg.created_at.strftime("%b %d, %Y • %I:%M %p")
         })
     return JsonResponse(msg_list, safe=False, status=200)
 
