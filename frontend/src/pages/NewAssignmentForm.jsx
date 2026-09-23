@@ -68,7 +68,7 @@ export default function NewAssignmentForm({ onCreated }) {
 
   // Selected Patient state
   const [selectedPatient, setSelectedPatient] = useState('');
-  
+
   // Exercise assignments list (supports multiple exercises with individual reps and days)
   const [assignments, setAssignments] = useState([
     { id: 1, exercise: '', reps: '15', days: '7' }
@@ -120,7 +120,7 @@ export default function NewAssignmentForm({ onCreated }) {
     // Suggest first unassigned exercise if available
     const assignedExercises = assignments.map(a => a.exercise);
     const availableEx = exerciseList.find(e => !assignedExercises.includes(e)) || '';
-    
+
     setAssignments(prev => [
       ...prev,
       { id: nextId, exercise: availableEx, reps: '15', days: '7' }
@@ -221,11 +221,11 @@ export default function NewAssignmentForm({ onCreated }) {
 
       setSuccess(true);
       setSuccessMsg(data.message || `Successfully assigned ${assignments.length} exercises to @${selectedPatient}.`);
-      
+
       // Reset form
       setSelectedPatient('');
       setAssignments([{ id: 1, exercise: '', reps: '15', days: '7' }]);
-      
+
       if (onCreated) onCreated();
       setTimeout(() => setSuccess(false), 6000);
     } catch (err) {
@@ -258,14 +258,6 @@ export default function NewAssignmentForm({ onCreated }) {
               Assign multiple exercises at once with custom repetitions and individual daily durations.
             </p>
           </div>
-
-          <Link
-            to="/patient-status"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-bold shadow-xs transition self-start sm:self-auto no-underline"
-          >
-            <Icons.Back />
-            <span>Patient Roster</span>
-          </Link>
         </div>
 
         {/* ─── Notification Alerts ────────────────────────────────────── */}
@@ -351,7 +343,7 @@ export default function NewAssignmentForm({ onCreated }) {
 
           {/* ─── Step 2: Multi-Exercise Prescription List ────────────────── */}
           <div className="space-y-4">
-            
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-1">
               <div>
                 <h2 className="text-lg font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
@@ -403,7 +395,7 @@ export default function NewAssignmentForm({ onCreated }) {
                 const exDetail = exerciseDetails.find(e => e.name === item.exercise);
 
                 return (
-                  <div 
+                  <div
                     key={item.id}
                     className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/80 dark:border-slate-800 rounded-3xl p-5 sm:p-7 shadow-lg relative transition-all hover:shadow-xl space-y-5"
                   >
@@ -434,7 +426,7 @@ export default function NewAssignmentForm({ onCreated }) {
 
                     {/* Inputs Grid: Exercise Select, Reps, and Days */}
                     <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                      
+
                       {/* Exercise Selection (5 cols) */}
                       <div className="lg:col-span-5 space-y-2">
                         <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -492,11 +484,10 @@ export default function NewAssignmentForm({ onCreated }) {
                               key={preset}
                               type="button"
                               onClick={() => handleUpdateAssignment(item.id, 'reps', String(preset))}
-                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
-                                String(item.reps) === String(preset)
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${String(item.reps) === String(preset)
                                   ? 'bg-cyan-600 text-white border-cyan-600'
                                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
-                              }`}
+                                }`}
                             >
                               {preset}
                             </button>
@@ -535,11 +526,10 @@ export default function NewAssignmentForm({ onCreated }) {
                               key={p.days}
                               type="button"
                               onClick={() => handleUpdateAssignment(item.id, 'days', String(p.days))}
-                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
-                                String(item.days) === String(p.days)
+                              className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${String(item.days) === String(p.days)
                                   ? 'bg-cyan-600 text-white border-cyan-600'
                                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
-                              }`}
+                                }`}
                             >
                               {p.label.split(' ')[0]}
                             </button>

@@ -204,17 +204,17 @@ const ExerciseCard = ({ exercise, onWatchDemo }) => {
     : null;
 
   return (
-    <div className={`border rounded-2xl p-5 sm:p-6 transition-all duration-200 ${
+    <div className={`border rounded-2xl p-3.5 sm:p-6 transition-all duration-200 overflow-hidden ${
       is_completed
         ? 'bg-emerald-50/40 dark:bg-emerald-950/15 border-emerald-200/70 dark:border-emerald-800/40'
         : isPastUncompleted
         ? 'bg-rose-50/30 dark:bg-rose-950/15 border-rose-200/80 dark:border-rose-900/40 shadow-xs'
         : 'bg-white dark:bg-slate-800/90 border-slate-200 dark:border-slate-700/60 shadow-xs hover:border-cyan-300 dark:hover:border-cyan-700'
     }`}>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         
         {/* Left Side: Exercise Details */}
-        <div className="flex-1 space-y-2">
+        <div className="flex-1 min-w-0 space-y-2">
           
           <div className="flex flex-wrap items-center gap-2.5">
             <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-tight">
@@ -247,7 +247,7 @@ const ExerciseCard = ({ exercise, onWatchDemo }) => {
           )}
 
           {/* Metadata Row */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 pt-1 text-xs text-slate-500 dark:text-slate-400">
+          <div className="flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-1.5 pt-1 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
             <span className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-300">
               <Icons.Reps />
               <strong>{target_reps}</strong> reps
@@ -261,9 +261,9 @@ const ExerciseCard = ({ exercise, onWatchDemo }) => {
             )}
 
             {formattedDate && !is_today && (
-              <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300 font-medium">
+              <span className="flex items-center gap-1 text-slate-600 dark:text-slate-300 font-medium truncate max-w-[180px] sm:max-w-none">
                 <Icons.Calendar />
-                <span>{formattedDate} {assigned_time ? `• ${assigned_time}` : ''}</span>
+                <span className="truncate">{formattedDate} {assigned_time ? `• ${assigned_time}` : ''}</span>
               </span>
             )}
 
@@ -446,19 +446,19 @@ export default function ExerciseList() {
   const todayCompleted = dataPayload.today.filter(e => e.is_completed).length;
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-gray-950 dark:to-slate-900 transition-colors duration-500 font-[Inter]">
+    <div className="min-h-screen min-h-[100dvh] w-full flex flex-col bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-gray-950 dark:to-slate-900 transition-colors duration-500 font-[Inter] overflow-x-hidden">
       
       <Navbar role="patient" />
 
-      <main className="flex-1 max-w-3xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <main className="flex-1 max-w-3xl w-full mx-auto px-3 sm:px-6 py-5 sm:py-8 space-y-5 sm:space-y-6 overflow-x-hidden">
 
         {/* ─── Page Header ─────────────────────────────────────────── */}
-        <div className="flex items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
+        <div className="flex items-start sm:items-center justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <h1 className="text-xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight truncate">
               My Physical Therapy Plan
             </h1>
-            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-[11px] sm:text-sm text-slate-500 dark:text-slate-400 mt-1 truncate">
               {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })} • Follow your prescribed routine
             </p>
           </div>
@@ -467,7 +467,7 @@ export default function ExerciseList() {
             type="button"
             onClick={fetchExercises}
             disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs font-semibold shadow-xs transition cursor-pointer shrink-0"
           >
             <Icons.Refresh spinning={loading} />
             <span className="hidden sm:inline">Refresh</span>
@@ -476,10 +476,10 @@ export default function ExerciseList() {
 
         {/* ─── Natural Daily Progress Bar (Clean & Helpful) ────────── */}
         {!loading && !error && todayCount > 0 && (
-          <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-4 sm:p-5 shadow-xs space-y-2.5">
-            <div className="flex items-center justify-between text-xs sm:text-sm">
-              <span className="font-semibold text-slate-900 dark:text-white">
-                Today's Progress: {todayCompleted} of {todayCount} exercises completed
+          <div className="bg-white dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/60 rounded-2xl p-3.5 sm:p-5 shadow-xs space-y-2.5">
+            <div className="flex items-center justify-between text-[11px] sm:text-sm gap-2">
+              <span className="font-semibold text-slate-900 dark:text-white truncate">
+                Today's Progress: {todayCompleted}/{todayCount} done
               </span>
               <span className="font-bold text-cyan-600 dark:text-cyan-400">
                 {Math.round((todayCompleted / todayCount) * 100)}%
@@ -505,18 +505,19 @@ export default function ExerciseList() {
         <div className="space-y-3">
           
           {/* Main Tabs (Today / Upcoming / History) */}
-          <div className="flex border-b border-slate-200 dark:border-slate-700/80">
+          <div className="flex overflow-x-auto border-b border-slate-200 dark:border-slate-700/80 scrollbar-none -mx-3 px-3 sm:mx-0 sm:px-0" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch' }}>
             <button
               type="button"
               onClick={() => { setActiveTab('today'); setStatusFilter('all'); }}
-              className={`pb-3 px-4 text-sm font-semibold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+              className={`pb-2.5 sm:pb-3 px-3 sm:px-4 text-xs sm:text-sm font-semibold transition-all border-b-2 rounded-none bg-transparent cursor-pointer flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0 ${
                 activeTab === 'today'
                   ? 'border-cyan-600 text-cyan-600 dark:text-cyan-400 font-bold'
                   : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <span>Today's Exercises</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+              <span className="sm:hidden">Today</span>
+              <span className="hidden sm:inline">Today's Exercises</span>
+              <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold ${
                 activeTab === 'today'
                   ? 'bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
@@ -528,14 +529,15 @@ export default function ExerciseList() {
             <button
               type="button"
               onClick={() => { setActiveTab('upcoming'); setStatusFilter('all'); }}
-              className={`pb-3 px-4 text-sm font-semibold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+              className={`pb-2.5 sm:pb-3 px-3 sm:px-4 text-xs sm:text-sm font-semibold transition-all border-b-2 rounded-none bg-transparent cursor-pointer flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0 ${
                 activeTab === 'upcoming'
                   ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 font-bold'
                   : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <span>Upcoming Sessions</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+              <span className="sm:hidden">Upcoming</span>
+              <span className="hidden sm:inline">Upcoming Sessions</span>
+              <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold ${
                 activeTab === 'upcoming'
                   ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
@@ -547,14 +549,15 @@ export default function ExerciseList() {
             <button
               type="button"
               onClick={() => { setActiveTab('history'); setStatusFilter('all'); }}
-              className={`pb-3 px-4 text-sm font-semibold transition-all border-b-2 cursor-pointer flex items-center gap-2 ${
+              className={`pb-2.5 sm:pb-3 px-3 sm:px-4 text-xs sm:text-sm font-semibold transition-all border-b-2 rounded-none bg-transparent cursor-pointer flex items-center gap-1.5 sm:gap-2 whitespace-nowrap shrink-0 ${
                 activeTab === 'history'
                   ? 'border-cyan-600 text-cyan-600 dark:text-cyan-400 font-bold'
                   : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <span>Past Sessions</span>
-              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+              <span className="sm:hidden">History</span>
+              <span className="hidden sm:inline">Past Sessions</span>
+              <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-semibold ${
                 activeTab === 'history'
                   ? 'bg-cyan-100 dark:bg-cyan-950 text-cyan-800 dark:text-cyan-300'
                   : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
@@ -565,7 +568,7 @@ export default function ExerciseList() {
           </div>
 
           {/* Sub Filters & Search Bar */}
-          <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center justify-between pt-1">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-2.5 items-stretch sm:items-center justify-between pt-1">
             
             {/* Status Pills */}
             <div className="flex gap-1.5">
@@ -590,7 +593,7 @@ export default function ExerciseList() {
             </div>
 
             {/* Clean Search Input */}
-            <div className="relative min-w-[200px]">
+            <div className="relative w-full sm:min-w-[200px] sm:w-auto">
               <input
                 type="text"
                 value={searchQuery}
@@ -679,8 +682,8 @@ export default function ExerciseList() {
               return (
                 <div key={group.date} className="space-y-3">
                   {/* Date Group Header */}
-                  <div className="flex items-center justify-between gap-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xs px-4 py-3 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-2xs">
-                    <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center justify-between gap-2 sm:gap-3 bg-white/80 dark:bg-slate-800/80 backdrop-blur-xs px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl border border-slate-200/80 dark:border-slate-700/60 shadow-2xs overflow-hidden">
+                    <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1">
                       <div className={`p-1.5 rounded-xl shrink-0 ${
                         activeTab === 'upcoming'
                           ? 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400'
@@ -688,17 +691,17 @@ export default function ExerciseList() {
                       }`}>
                         <Icons.Calendar />
                       </div>
-                      <div className="min-w-0">
-                        <h2 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                      <div className="min-w-0 flex-1">
+                        <h2 className="text-[11px] sm:text-sm font-bold text-slate-900 dark:text-white truncate">
                           {formatDateHeader(group.date)}
                         </h2>
-                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono hidden sm:inline">
                           {group.date}
                         </span>
                       </div>
                     </div>
 
-                    <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border shrink-0 ${
+                    <span className={`text-[10px] sm:text-[11px] font-bold px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full border shrink-0 whitespace-nowrap ${
                       activeTab === 'upcoming'
                         ? 'bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800/50'
                         : isAllDone
@@ -706,13 +709,13 @@ export default function ExerciseList() {
                         : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800/50'
                     }`}>
                       {activeTab === 'upcoming' 
-                        ? `${total} ${total === 1 ? 'Exercise' : 'Exercises'} Scheduled` 
-                        : `${completed}/${total} Done (${pct}%)`}
+                        ? `${total} Scheduled` 
+                        : `${completed}/${total} (${pct}%)`}
                     </span>
                   </div>
 
                   {/* Exercises for this Date */}
-                  <div className="space-y-3 sm:pl-3 border-l-2 border-slate-200/70 dark:border-slate-700/50">
+                  <div className="space-y-3 pl-2 sm:pl-3 border-l-2 border-slate-200/70 dark:border-slate-700/50">
                     {group.items.map((ex) => (
                       <ExerciseCard 
                         key={ex.assignment_id} 
